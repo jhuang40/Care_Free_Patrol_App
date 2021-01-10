@@ -1,16 +1,9 @@
-# projects
+# Care Free Patrol App
 
-A new Flutter project.
+Track the activity of seniors, this is a tool to help you keep track of your seniors. 
 
-## Getting Started
+##Reasoning
+ The reason why we decided to create an app like this is to help keep track of seniors while maintaining social distancing during this pandemic. The goal of this application is to help seniors when abnormal situations arise during this pandemic with notifications. 
+##Current Features
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://flutter.dev/docs/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://flutter.dev/docs/cookbook)
-
-For help getting started with Flutter, view our
-[online documentation](https://flutter.dev/docs), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+ - Tracking activity (with a pedometer) with sms notifications when an unexpected amount of steps is detected.

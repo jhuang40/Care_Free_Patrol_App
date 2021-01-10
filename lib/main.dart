@@ -1,116 +1,177 @@
 import 'package:flutter/material.dart';
-import 'StepTracker.dart';
+import 'package:twilio_flutter/twilio_flutter.dart';
+import 'dart:async';
+
+import 'package:pedometer/pedometer.dart';
+
+String formatDate(DateTime d) {
+  return d.toString().substring(0, 19);
+}
 
 void main() {
   runApp(MyApp());
 }
 
-class MyApp extends StatelessWidget {
-  // This widget is the root of your application.
+class MyApp extends StatefulWidget {
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
-        primarySwatch: Colors.blue,
-      ),
-      home: MyHomePage(title: 'Flutter Demo Home Page'),
-    );
+  _MyAppState createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  TwilioFlutter _twilioFlutter;
+  Stream<StepCount> _stepCountStream;
+  Stream<PedestrianStatus> _pedestrianStatusStream;
+  String _status = '?', _steps = '0';
+  int goal = 5000;
+  String phoneNumber = 'Phone number not yet set';
+  final myGoalController = TextEditingController();
+  final myPhoneNumberController = TextEditingController();
+  final oneDayCountDown = const Duration(hours:10);
+  int total = 0;
+  int display = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _twilioFlutter = TwilioFlutter(
+        accountSid: '*****************************',
+        authToken: '******************************',
+        twilioNumber: '***********');
+    initPlatformState();
   }
-}
 
-class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key, this.title}) : super(key: key);
+  void sendSmsExceeded() async {
+    _twilioFlutter.sendSMS(
+        toNumber: phoneNumber, messageBody: 'Steps has been exceeded');
+  }
 
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
+  void sendSmsNotExceeded() async {
+    _twilioFlutter.sendSMS(
+        toNumber: phoneNumber, messageBody: 'Steps has not been exceeded');
+  }
 
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
-  @override
-  _MyHomePageState createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
+  void onStepCount(StepCount event) {
+    print(event);
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+      _steps = event.steps.toString();
+      display = int.parse(_steps) - total;;
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
-    return Scaffold(
-      appBar: AppBar(
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Invoke "debug painting" (press "p" in the console, choose the
-          // "Toggle Debug Paint" action from the Flutter Inspector in Android
-          // Studio, or the "Toggle Debug Paint" command in Visual Studio Code)
-          // to see the wireframe for each widget.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Text(
-              'You have pushed the button this many times:',
-            ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headline4,
-            ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
-    );
+  void onPedestrianStatusChanged(PedestrianStatus event) {
+    print(event);
+    setState(() {
+      _status = event.status;
+    });
+  }
+
+  void onPedestrianStatusError(error) {
+    print('onPedestrianStatusError: $error');
+    setState(() {
+      _status = 'Pedestrian Status not available';
+    });
+    print(_status);
+  }
+
+  void onStepCountError(error) {
+    print('onStepCountError: $error');
+    setState(() {
+      _steps = 'Step Count not available';
+    });
+  }
+
+  void checkSteps() {
+    if (display >= goal) {
+      sendSmsExceeded();
+      setState(() {
+        new Timer(oneDayCountDown, () => checkSteps());
+        total = int.parse(_steps);
+      });
+    } else {
+      sendSmsNotExceeded();
+      setState(() {
+        new Timer(oneDayCountDown, () => checkSteps());
+        total = int.parse(_steps);
+      });
+    }
   }
 
 
+  void initPlatformState() {
+    _pedestrianStatusStream = Pedometer.pedestrianStatusStream;
+    _pedestrianStatusStream
+        .listen(onPedestrianStatusChanged)
+        .onError(onPedestrianStatusError);
+
+    _stepCountStream = Pedometer.stepCountStream;
+    _stepCountStream.listen(onStepCount).onError(onStepCountError);
+
+    if (!mounted) return;
+  }
+
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              Text(
+                'Steps taken:',
+                style: TextStyle(fontSize: 25),
+              ),
+              Text(
+                display.toString(),
+                style: TextStyle(fontSize: 40),
+              ),
+              Text(
+                'Steps goal:',
+                style: TextStyle(fontSize: 25),
+              ),
+              Text(
+                goal.toString(),
+                style: TextStyle(fontSize: 40),
+              ),
+              Text(
+                'Current contact',
+                style: TextStyle(fontSize: 25),
+              ),
+              Text(
+                phoneNumber,
+                style: TextStyle(fontSize: 15),
+              ),
+              TextField(
+                controller: myGoalController,
+                decoration: InputDecoration(
+                  labelText: 'Step Goal',
+                ),
+              ),
+              TextField(
+                controller: myPhoneNumberController,
+                decoration: InputDecoration(
+                  labelText: 'Contact Number',
+                ),
+              ),
+            ],
+          ),
+        ),
+          floatingActionButton: FloatingActionButton.extended(
+          // When the user presses the button, show an alert dialog containing
+          // the text that the user has entered into the text field.
+          onPressed: () {
+            setState(() {
+              goal = int.parse(myGoalController.text);
+              phoneNumber = myPhoneNumberController.text;
+              new Timer(oneDayCountDown, () => checkSteps());
+              total = int.parse(_steps);
+              display = int.parse(_steps) - total;
+            });
+    },
+    label: Text('Save'),
+          )
+      ),
+    );
+  }
 }
